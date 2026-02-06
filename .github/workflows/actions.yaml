@@ -4,7 +4,7 @@ on:
   push:
     branches:
       - develop
-      - feat/jwks
+      - main
     tags:
       - 'v*'
 
