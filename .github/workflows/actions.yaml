@@ -1,0 +1,103 @@
+name: Build & Push Docker image
+
+on:
+  push:
+    branches:
+      - develop
+      - feat/jwks
+    tags:
+      - 'v*'
+
+jobs:
+  build-and-deploy:
+    name: 🐳 Build (amd64) & Push (Scaleway) + Update infra
+    runs-on: ubuntu-latest
+
+    permissions:
+      contents: read
+
+    steps:
+      - name: 📥 Checkout code
+        uses: actions/checkout@v4
+
+      - name: 🔐 Log in to Scaleway Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: rg.fr-par.scw.cloud
+          username: nologin
+          password: ${{ secrets.SCW_SECRET_KEY }}
+
+      - name: 🏗️ Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: 🏷️ Compute image tags (commit SHA)
+        id: vars
+        run: |
+          SHA_SHORT="${GITHUB_SHA::7}"
+          echo "SHA_SHORT=${SHA_SHORT}" >> $GITHUB_ENV
+
+          # Nom d'image dans Scaleway
+          IMAGE="rg.fr-par.scw.cloud/${{ secrets.SCW_NAMESPACE }}/${{ github.event.repository.name }}"
+          echo "IMAGE=${IMAGE}" >> $GITHUB_ENV
+
+          if [[ "${GITHUB_REF_NAME}" == "main" ]]; then
+            echo "OVERLAY=production" >> $GITHUB_ENV
+          else
+            echo "OVERLAY=preproduction" >> $GITHUB_ENV
+          fi
+
+      - name: 🐳 Build and push Docker image (amd64 only)
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          platforms: linux/amd64
+          tags: |
+            ${{ env.IMAGE }}:sha-${{ env.SHA_SHORT }}
+            ${{ env.IMAGE }}:latest
+
+      - name: 🔄 Update K3S image tag in infra repo
+        env:
+          PAT_TOKEN: ${{ secrets.PAT_INFRA }}
+          IMAGE: ${{ env.IMAGE }}
+          IMAGE_TAG: sha-${{ env.SHA_SHORT }}
+          BRANCH: ${{ github.ref_name }}
+          OVERLAY: ${{ env.OVERLAY }}
+          SERVICE_NAME: ${{ github.event.repository.name }}
+        run: |
+          set -e
+
+          git config --global user.name "GitHub Actions Bot"
+          git config --global user.email "actions@github.com"
+
+          git clone https://x-access-token:${PAT_TOKEN}@github.com/goodfoodcesi/goodfood-infra.git
+          cd goodfood-infra
+
+          git checkout main || git checkout -b main
+
+          # Aller dans le bon overlay
+          # cd k3s/overlays/${OVERLAY}
+          cd k3s/overlays/preprod
+
+          # Installer kustomize
+          curl -s "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh" | bash
+
+          # Mettre à jour l'image (nom + tag)
+          ./kustomize edit set image ${IMAGE}=${IMAGE}:${IMAGE_TAG}
+
+          echo "📝 Updated kustomization.yaml:"
+          cat kustomization.yaml | grep -A4 "images:" || true
+
+          cd ../../..
+
+          if git diff --quiet; then
+            echo "⚠️ No changes"
+            exit 0
+          fi
+
+          # git add k3s/overlays/${OVERLAY}/kustomization.yaml
+          git add k3s/overlays/preprod/kustomization.yaml
+          git commit -m "🚀 Deploy ${SERVICE_NAME}:${IMAGE_TAG} (${OVERLAY})"
+          git push origin main
+
+          echo "✅ Updated ${SERVICE_NAME} to ${IMAGE_TAG} in preprod"
