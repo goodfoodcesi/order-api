@@ -11,6 +11,8 @@ export const redisCheck = (app: Elysia) =>
         }
 
         // Log pour debug
+        console.log('[TRACE] OrderAPI Redis Middleware - Method:', request.method);
+        console.log('[TRACE] OrderAPI Redis Middleware - Origin:', headers['origin']);
         console.log('[TRACE] OrderAPI Redis Middleware - Headers keys:', Object.keys(headers));
         const cookieHeader = headers['cookie'];
         console.log('[TRACE] OrderAPI Redis Middleware - Cookie Header:', cookieHeader);
