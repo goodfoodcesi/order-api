@@ -4,7 +4,12 @@ import Redis from 'ioredis';
 const redis = new Redis(process.env.REDIS_URL || 'redis://localhost:6379');
 
 export const redisCheck = (app: Elysia) =>
-    app.derive(async ({ cookie, headers, set }) => {
+    app.derive(async ({ cookie, headers, request, set }) => {
+        if (request.method === 'OPTIONS') {
+            console.log('[TRACE] OrderAPI Redis Middleware - Skipping OPTIONS request');
+            return {};
+        }
+
         // Log pour debug
         console.log('[TRACE] OrderAPI Redis Middleware - Headers keys:', Object.keys(headers));
         const cookieHeader = headers['cookie'];
