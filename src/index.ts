@@ -18,7 +18,11 @@ startDriverConsumer();
 
 const app = new Elysia()
   .use(swagger())
-  .use(cors())
+  .use(cors({
+    origin: true,
+    credentials: true,
+    allowedHeaders: ['Content-Type', 'Authorization', 'Cookie'],
+  }))
   .use(redisCheck) // Enable when Redis behavior is confirmed
   .group('/orders', (app) => app
     .get('/', OrderController.getOrders)
