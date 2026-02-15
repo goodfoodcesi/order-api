@@ -38,7 +38,6 @@ export async function startOrderConsumer() {
         channel.consume('orders', async (msg: amqplib.ConsumeMessage | null) => {
             if (msg) {
                 const content = JSON.parse(msg.content.toString());
-                console.log('[TRACE] 4. OrderAPI received RabbitMQ message:', content.event);
                 console.log('📦 Received order event:', content);
 
                 if (content.event === 'order.created') {
@@ -121,15 +120,11 @@ export async function startOrderConsumer() {
 
                         // Notify shop via WebSocket
                         if (wsServer) {
-                            console.log(`[TRACE] 6. OrderAPI notifying shop via WS (Order ID: ${order._id})`);
                             wsServer.notifyRole('shop', {
                                 type: 'order.created',
                                 order: order.toJSON()
                             });
-                            console.log(`[TRACE] 7. OrderAPI WS notification sent to role 'shop'`);
                             console.log(`📤 Notified shop ${order.shopId} of new order`);
-                        } else {
-                            console.error('[TRACE] 6.X OrderAPI wsServer is NULL - Cannot notify shop!');
                         }
 
                         channel.ack(msg);
