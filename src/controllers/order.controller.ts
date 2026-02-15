@@ -12,11 +12,7 @@ const VALID_TRANSITIONS: Record<string, string[]> = {
 };
 
 // Import WebSocket server (will be initialized after server starts)
-let wsServer: any = null;
-setTimeout(async () => {
-    const module = await import('../index');
-    wsServer = module.wsServer;
-}, 1000);
+import { wsServer } from '../websocket/server';
 
 export const OrderController = {
     getOrders: async ({ query, set }: Context) => {
